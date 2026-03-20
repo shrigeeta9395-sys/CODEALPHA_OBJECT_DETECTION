@@ -1,0 +1,50 @@
+import cv2
+import torch
+import numpy as np
+from sort import Sort
+
+# Load YOLOv5 model
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+
+# Initialize tracker
+tracker = Sort()
+
+# Open webcam
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # YOLO detection
+    results = model(frame)
+    detections = []
+
+    for *box, conf, cls in results.xyxy[0]:
+        x1, y1, x2, y2 = map(int, box)
+        conf = float(conf)
+
+        if conf > 0.4:
+            detections.append([x1, y1, x2, y2, conf])
+
+    detections = np.array(detections)
+
+    # Tracking
+    tracked_objects = tracker.update(detections)
+
+    # Draw results
+    for det, obj_id in tracked_objects:
+        x1, y1, x2, y2, conf = map(int, det)
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
+        cv2.putText(frame, f"ID: {obj_id}", (x1, y1-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+
+    cv2.imshow("Object Detection + Tracking", frame)
+
+    if cv2.waitKey(1) & 0xFF == 27:
+        break
+
+cap.release()
+cv2.destroyAllWindows()
